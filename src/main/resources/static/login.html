@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FitZone Gym - Login & Sign Up</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; position: relative; }
+        .top-right-btn { position: absolute; top: 20px; right: 25px; background: transparent; border: 2px solid #e94560; color: white; padding: 10px 20px; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; width: auto; }
+        .top-right-btn:hover { background: #e94560; }
+        .card { background: #16213e; padding: 30px; border-radius: 10px; width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        h2 { text-align: center; color: #e94560; margin-top: 0; }
+        input { width: 100%; padding: 11px; margin: 9px 0; border: none; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 11px; background: #e94560; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin-top: 6px; font-weight: bold; }
+        button:hover { background: #c73650; }
+        .btn-secondary { background: #0f3460; }
+        .btn-secondary:hover { background: #1b4b82; }
+        .msg-error { color: #ff6b6b; text-align: center; margin-top: 10px; font-size: 14px; }
+        .msg-success { color: #4ade80; text-align: center; margin-top: 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <!-- Top Right Toggle Button -->
+    <button id="toggleAuthBtn" class="top-right-btn" onclick="toggleMode()">Sign Up</button>
+
+    <!-- LOGIN CARD -->
+    <div id="loginCard" class="card">
+        <h2>FitZone Gym Login</h2>
+        <input type="text" id="loginIdentifier" placeholder="Email ID or Mobile Number" required>
+        <input type="password" id="loginPassword" placeholder="Password" required>
+        <button onclick="login()">Login</button>
+        <p id="loginError" class="msg-error"></p>
+    </div>
+
+    <!-- SIGN UP CARD (Hidden initially) -->
+    <div id="signupCard" class="card" style="display: none;">
+        <h2>Create Member Account</h2>
+        <input type="text" id="signupName" placeholder="Full Name" required>
+        <input type="text" id="signupContact" placeholder="Email ID or Mobile Number" required>
+        <input type="password" id="signupPassword" placeholder="Create Password" required>
+
+        <button id="sendOtpBtn" class="btn-secondary" onclick="sendOtp()">Send OTP</button>
+
+        <!-- OTP Verification Section (Shows after OTP is sent) -->
+        <div id="otpSection" style="display: none; margin-top: 10px; border-top: 1px solid #2a3b66; padding-top: 10px;">
+            <input type="text" id="signupOtp" placeholder="Enter 6-Digit OTP" maxlength="6">
+            <button onclick="verifyAndSignup()" style="background: #28a745;">Verify OTP & Sign Up</button>
+        </div>
+
+        <p id="signupMsg" class="msg-error"></p>
+    </div>
+
+    <script>
+        let isSignupMode = false;
+
+        function toggleMode() {
+            isSignupMode = !isSignupMode;
+            document.getElementById("loginCard").style.display = isSignupMode ? "none" : "block";
+            document.getElementById("signupCard").style.display = isSignupMode ? "block" : "none";
+            document.getElementById("toggleAuthBtn").innerText = isSignupMode ? "Back to Login" : "Sign Up";
+            document.getElementById("loginError").innerText = "";
+            document.getElementById("signupMsg").innerText = "";
+        }
+
+        async function login() {
+            const email = document.getElementById("loginIdentifier").value;
+            const password = document.getElementById("loginPassword").value;
+
+            const response = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                localStorage.setItem("gymUser", JSON.stringify(data));
+                window.location.href = (data.role === "ADMIN") ? "/admin.html" : "/member.html";
+            } else {
+                document.getElementById("loginError").innerText = data.error;
+            }
+        }
+
+        async function sendOtp() {
+            const name = document.getElementById("signupName").value.trim();
+            const contact = document.getElementById("signupContact").value.trim();
+            const password = document.getElementById("signupPassword").value;
+            const msgEl = document.getElementById("signupMsg");
+
+            if (!name || !contact || !password) {
+                msgEl.className = "msg-error";
+                msgEl.innerText = "Please fill in Name, Email/Mobile, and Password first.";
+                return;
+            }
+
+            document.getElementById("sendOtpBtn").innerText = "Sending...";
+
+            const res = await fetch("/api/auth/send-otp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contact })
+            });
+
+            const data = await res.json();
+            document.getElementById("sendOtpBtn").innerText = "Resend OTP";
+
+            if (res.ok) {
+                msgEl.className = "msg-success";
+                msgEl.innerText = data.message;
+                document.getElementById("otpSection").style.display = "block";
+            } else {
+                msgEl.className = "msg-error";
+                msgEl.innerText = data.error;
+            }
+        }
+
+        async function verifyAndSignup() {
+            const name = document.getElementById("signupName").value.trim();
+            const contact = document.getElementById("signupContact").value.trim();
+            const password = document.getElementById("signupPassword").value;
+            const otp = document.getElementById("signupOtp").value.trim();
+            const msgEl = document.getElementById("signupMsg");
+
+            const res = await fetch("/api/auth/signup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, contact, password, otp })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                alert(data.message + "\nPlease log in now!");
+                toggleMode();
+                document.getElementById("loginIdentifier").value = contact;
+            } else {
+                msgEl.className = "msg-error";
+                msgEl.innerText = data.error;
+            }
+        }
+    </script>
+</body>
+</html>

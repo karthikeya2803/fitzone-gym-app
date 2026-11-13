@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FitZone - Checkout & Payment</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .checkout-card { background: #16213e; padding: 30px; border-radius: 12px; width: 400px; box-shadow: 0 6px 25px rgba(0,0,0,0.5); }
+        h2 { color: #e94560; margin-top: 0; text-align: center; }
+        .order-summary { background: #0f3460; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #e94560; }
+        .order-summary p { margin: 6px 0; font-size: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px; color: #ddd; }
+        input, select { width: 100%; padding: 11px; margin-bottom: 14px; border: none; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        .row { display: flex; gap: 10px; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-pay { background: #28a745; margin-bottom: 10px; }
+        .btn-pay:hover { background: #218838; }
+        .btn-back { background: #6c757d; }
+        .btn-back:hover { background: #5a6268; }
+        .qr-box { background: white; color: #1a1a2e; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 14px; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+    <div class="checkout-card">
+        <h2>FitZone Secure Checkout</h2>
+
+        <!-- Selected Plan Details -->
+        <div class="order-summary">
+            <p><strong>Member:</strong> <span id="memberName"></span> (<span id="memberCode"></span>)</p>
+            <p><strong>Selected Plan:</strong> <span id="planName"></span></p>
+            <p><strong>Validity:</strong> <span id="planDays"></span> Days</p>
+            <p style="font-size: 18px; color: #4ade80; margin-top: 10px;"><strong>Amount Payable: ₹<span id="planPrice"></span></strong></p>
+        </div>
+
+        <!-- Payment Mode Selector -->
+        <label for="paymentMode">Choose Payment Mode:</label>
+        <select id="paymentMode" onchange="togglePaymentFields()">
+            <option value="UPI">UPI (GPay / PhonePe / Paytm)</option>
+            <option value="CARD">Credit / Debit Card</option>
+            <option value="NET_BANKING">Net Banking</option>
+        </select>
+
+        <!-- UPI Section -->
+        <div id="upiFields">
+            <div class="qr-box">
+                <strong>Scan & Pay via UPI</strong><br>
+                <span style="color:#555;">UPI ID: <b>fitzonegym@okaxis</b></span>
+            </div>
+            <label>Or Enter Your UPI ID:</label>
+            <input type="text" id="upiId" placeholder="e.g. rahul@okicici">
+        </div>
+
+        <!-- Card Section -->
+        <div id="cardFields" style="display: none;">
+            <label>Cardholder Name:</label>
+            <input type="text" id="cardHolder" placeholder="Name on Card">
+            <label>Card Number:</label>
+            <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="16">
+            <div class="row">
+                <div style="width: 50%;">
+                    <label>Expiry:</label>
+                    <input type="text" id="cardExpiry" placeholder="MM/YY" maxlength="5">
+                </div>
+                <div style="width: 50%;">
+                    <label>CVV:</label>
+                    <input type="password" id="cardCvv" placeholder="123" maxlength="3">
+                </div>
+            </div>
+        </div>
+
+        <!-- Net Banking Section -->
+        <div id="netBankingFields" style="display: none;">
+            <label>Select Your Bank:</label>
+            <select id="bankSelect">
+                <option value="SBI">State Bank of India (SBI)</option>
+                <option value="HDFC">HDFC Bank</option>
+                <option value="ICICI">ICICI Bank</option>
+                <option value="AXIS">Axis Bank</option>
+                <option value="KOTAK">Kotak Mahindra Bank</option>
+            </select>
+        </div>
+
+        <button id="payNowBtn" class="btn-pay" onclick="processPayment()">Pay Now</button>
+        <button class="btn-back" onclick="window.location.href='/member.html'">Cancel & Go Back</button>
+    </div>
+
+    <script>
+        // 1. Verify logged-in user
+        const user = JSON.parse(localStorage.getItem("gymUser"));
+        if (!user || user.role !== "MEMBER") {
+            window.location.href = "/login.html";
+        }
+
+        // 2. Read selected plan details from URL query parameters
+        const params = new URLSearchParams(window.location.search);
+        const planId = params.get("planId");
+        const planName = params.get("planName");
+        const price = params.get("price");
+        const days = params.get("days");
+
+        if (!planId || !planName || !price) {
+            window.location.href = "/member.html";
+        }
+
+        document.getElementById("memberName").innerText = user.name;
+        document.getElementById("memberCode").innerText = user.gymCode;
+        document.getElementById("planName").innerText = planName;
+        document.getElementById("planDays").innerText = days;
+        document.getElementById("planPrice").innerText = price;
+        document.getElementById("payNowBtn").innerText = `Confirm & Pay ₹${price}`;
+
+        function togglePaymentFields() {
+            const mode = document.getElementById("paymentMode").value;
+            document.getElementById("upiFields").style.display = (mode === "UPI") ? "block" : "none";
+            document.getElementById("cardFields").style.display = (mode === "CARD") ? "block" : "none";
+            document.getElementById("netBankingFields").style.display = (mode === "NET_BANKING") ? "block" : "none";
+        }
+
+        async function processPayment() {
+            const mode = document.getElementById("paymentMode").value;
+
+            if (mode === "UPI" && !document.getElementById("upiId").value.includes("@")) {
+                alert("Please enter a valid UPI ID (e.g. name@upi)");
+                return;
+            }
+            if (mode === "CARD" && document.getElementById("cardNumber").value.trim().length < 12) {
+                alert("Please enter a valid 16-digit Card Number");
+                return;
+            }
+
+            const btn = document.getElementById("payNowBtn");
+            btn.disabled = true;
+            btn.innerText = "Processing Payment...";
+
+            const res = await fetch("/api/member/subscribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: user.id,
+                    planId: parseInt(planId),
+                    paymentMethod: mode
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                alert(`${data.message}\nTransaction ID: ${data.transactionId}`);
+                window.location.href = "/member.html";
+            } else {
+                alert("Payment failed. Please try again.");
+                btn.disabled = false;
+                btn.innerText = `Confirm & Pay ₹${price}`;
+            }
+        }
+    </script>
+</body>
+</html>

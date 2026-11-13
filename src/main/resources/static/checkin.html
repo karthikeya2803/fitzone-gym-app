@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FitZone - Gym Entrance Check-In</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .kiosk { background: #16213e; padding: 40px; border-radius: 12px; width: 420px; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+        h1 { color: #e94560; margin-bottom: 10px; }
+        input { width: 100%; padding: 15px; font-size: 20px; text-align: center; text-transform: uppercase; border: none; border-radius: 8px; margin: 15px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; font-size: 18px; background: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #c73650; }
+        .result { margin-top: 25px; padding: 20px; border-radius: 8px; display: none; text-align: left; }
+        .granted { background: #1e4620; border: 2px solid #28a745; color: #d4edda; }
+        .denied { background: #5a1a1a; border: 2px solid #dc3545; color: #f8d7da; }
+    </style>
+</head>
+<body>
+
+    <div class="kiosk">
+        <h1>FitZone Door Check-In</h1>
+        <p style="color: #aaa;">Enter your Gym ID to mark attendance</p>
+
+        <input type="text" id="gymCode" placeholder="e.g. GYM101" onkeyup="if(event.key==='Enter') verifyEntry()">
+        <button onclick="verifyEntry()">Check In</button>
+
+        <div id="resultBox" class="result"></div>
+    </div>
+
+    <script>
+        async function verifyEntry() {
+            const gymCode = document.getElementById("gymCode").value;
+            if (!gymCode) return;
+
+            const res = await fetch("/api/checkin", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ gymCode })
+            });
+
+            const data = await res.json();
+            const box = document.getElementById("resultBox");
+            box.style.display = "block";
+
+            if (data.access === "GRANTED") {
+                box.className = "result granted";
+                box.innerHTML = `
+                    <h2 style="margin-top:0; color:#4ade80;">✅ ACCESS GRANTED</h2>
+                    <p><strong>Welcome:</strong> ${data.memberName}</p>
+                    <p><strong>Plan:</strong> ${data.planName}</p>
+                    <p><strong>Valid Until:</strong> ${data.endDate}</p>
+                    <p><strong>Attendance Marked:</strong> ${data.checkInDate} at ${data.checkInTime}</p>
+                `;
+            } else {
+                box.className = "result denied";
+                box.innerHTML = `
+                    <h2 style="margin-top:0; color:#f87171;">❌ ACCESS DENIED</h2>
+                    ${data.memberName ? `<p><strong>Member:</strong> ${data.memberName}</p>` : ''}
+                    <p><strong>Reason:</strong> ${data.reason}</p>
+                `;
+            }
+
+            document.getElementById("gymCode").value = "";
+        }
+    </script>
+</body>
+</html>

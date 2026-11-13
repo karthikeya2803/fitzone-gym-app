@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FitZone - Member Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #1a1a2e; color: white; padding: 15px 25px; border-radius: 8px; }
+        .banner { padding: 15px 20px; border-radius: 8px; margin-top: 20px; font-weight: bold; display: none; }
+        .banner-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .banner-expired { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-card { background: white; padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px; }
+        .plan-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid #e94560; }
+        .price { font-size: 24px; font-weight: bold; color: #16213e; margin: 10px 0; }
+        button { padding: 10px 15px; background: #e94560; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 15px; }
+        button:hover { background: #c73650; }
+        .logout-btn { width: auto; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h2 style="margin:0;">FitZone Member Portal</h2>
+            <small id="memberInfo"></small>
+        </div>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <!-- 10-Day Expiry Reminder Banner -->
+    <div id="reminderBanner" class="banner"></div>
+
+    <!-- Current Subscription Details -->
+    <div class="status-card">
+        <h3>My Membership Status</h3>
+        <p id="subDetails">Loading membership details...</p>
+    </div>
+
+    <!-- Available Plans -->
+    <h3 style="margin-top: 30px;">Available Gym Plans</h3>
+    <div id="plansGrid" class="plans-grid"></div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem("gymUser"));
+        if (!user || user.role !== "MEMBER") {
+            window.location.href = "/login.html";
+        } else {
+            document.getElementById("memberInfo").innerText = `Welcome, ${user.name} | Door Check-In ID: ${user.gymCode}`;
+        }
+
+        async function loadDashboard() {
+            // 1. Load Subscription & Reminder Status
+            const statusRes = await fetch(`/api/member/${user.id}/status`);
+            const statusData = await statusRes.json();
+
+            const banner = document.getElementById("reminderBanner");
+            if (statusData.showReminder) {
+                banner.style.display = "block";
+                banner.innerText = "⚠️ " + statusData.reminderMessage;
+                banner.className = "banner " + (statusData.status === "EXPIRED" ? "banner-expired" : "banner-warning");
+            } else {
+                banner.style.display = "none";
+            }
+
+            const subDetails = document.getElementById("subDetails");
+            if (statusData.hasPlan) {
+                subDetails.innerHTML = `
+                    <strong>Current Plan:</strong> ${statusData.planName} <br>
+                    <strong>Status:</strong> <span style="color:${statusData.status === 'ACTIVE' ? 'green' : 'red'}; font-weight:bold;">${statusData.status}</span> <br>
+                    <strong>Valid Until:</strong> ${statusData.endDate} (${statusData.daysLeft >= 0 ? statusData.daysLeft + ' days remaining' : 'Expired'})
+                `;
+            } else {
+                subDetails.innerText = "No active subscription found.";
+            }
+
+            // 2. Load Available Plans
+            const plansRes = await fetch("/api/member/plans");
+            const plans = await plansRes.json();
+            const grid = document.getElementById("plansGrid");
+            grid.innerHTML = "";
+
+            plans.forEach(p => {
+                grid.innerHTML += `
+                    <div class="plan-card">
+                        <h3>${p.planName}</h3>
+                        <p>${p.description}</p>
+                        <div class="price">₹${p.price} <small style="font-size:14px; color:#666;">/ ${p.durationDays} days</small></div>
+                        <button onclick="subscribe(${p.id}, '${p.planName}', ${p.price}, ${p.durationDays})">Subscribe Now</button>
+                    </div>
+                `;
+            });
+        }
+
+    function subscribe(planId, planName, price, days) {
+    const url = `/payment.html?planId=${planId}&planName=${encodeURIComponent(planName)}&price=${price}&days=${days}`;
+    window.location.href = url;
+}
+
+        function logout() {
+            localStorage.removeItem("gymUser");
+            window.location.href = "/login.html";
+        }
+
+        loadDashboard();
+    </script>
+    <!-- Floating Chatbot UI -->
+<div id="chatWidget" style="position:fixed; bottom:20px; right:20px; width:320px; background:white; border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,0.25); overflow:hidden; font-family:Arial;">
+    <div onclick="toggleChat()" style="background:#1a1a2e; color:white; padding:12px 15px; cursor:pointer; font-weight:bold; display:flex; justify-content:space-between;">
+        <span>💬 FitBot Gym Assistant</span>
+        <span id="chatToggle">▲</span>
+    </div>
+    <div id="chatBody" style="display:none; flex-direction:column; height:320px;">
+        <div id="chatMessages" style="flex:1; padding:10px; overflow-y:auto; font-size:14px; background:#f9f9f9;">
+            <div style="background:#e2e8f0; padding:8px; border-radius:6px; margin-bottom:8px;">
+                Hi! Ask me about gym plans, timings, or workout tips!
+            </div>
+        </div>
+        <div style="display:flex; border-top:1px solid #ddd;">
+            <input type="text" id="chatInput" placeholder="Ask something..." style="flex:1; border:none; padding:10px; outline:none;" onkeyup="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()" style="width:auto; border-radius:0; padding:10px 15px;">Send</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleChat() {
+        const body = document.getElementById("chatBody");
+        const icon = document.getElementById("chatToggle");
+        if (body.style.display === "none") {
+            body.style.display = "flex";
+            icon.innerText = "▼";
+        } else {
+            body.style.display = "none";
+            icon.innerText = "▲";
+        }
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById("chatInput");
+        const msg = input.value.trim();
+        if (!msg) return;
+
+        const box = document.getElementById("chatMessages");
+        box.innerHTML += `<div style="background:#e94560; color:white; padding:8px; border-radius:6px; margin-bottom:8px; text-align:right;">${msg}</div>`;
+        input.value = "";
+        box.scrollTop = box.scrollHeight;
+
+        const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: msg })
+        });
+        const data = await res.json();
+
+        box.innerHTML += `<div style="background:#e2e8f0; padding:8px; border-radius:6px; margin-bottom:8px;">${data.reply}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+</script>
+</body>
+</html>
